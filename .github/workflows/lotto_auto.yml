@@ -1,0 +1,37 @@
+name: 로또 자동 생성기
+
+on:
+  schedule:
+    # 매주 토요일 밤 9시 30분 (한국시간) 실행
+    # (GitHub 서버 시간 기준 12:30 UTC)
+    - cron: '30 12 * * 6'
+  workflow_dispatch: # 수동 실행 버튼 (테스트용)
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 코드 가져오기
+        uses: actions/checkout@v3
+
+      - name: 파이썬 설치
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: 필요한 도구 설치
+        run: pip install requests beautifulsoup4
+
+      - name: 로또 정보 긁어오기 (update.py 실행)
+        run: python update.py
+
+      - name: 결과 깃허브에 올리기
+        run: |
+          git config --global user.name "LottoBot"
+          git config --global user.email "bot@github.com"
+          git add results/*.json
+          git commit -m "Add new lotto result" || exit 0
+          git push
