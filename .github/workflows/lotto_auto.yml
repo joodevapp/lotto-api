@@ -4,11 +4,11 @@ on:
   push:
     branches: [ "main" ]
   schedule:
-    - cron: '0 13 * * 6' # 매주 토요일 밤 실행 (UTC 기준)
+    - cron: '0 13 * * 6' # 매주 토요일 실행
   workflow_dispatch: # 수동 실행 버튼
 
 permissions:
-  contents: write  # 기계가 저장소에 글을 쓸 수 있는 권한 부여
+  contents: write  # 기계가 저장소에 글을 쓸 수 있는 권한 (필수)
 
 jobs:
   build:
@@ -31,14 +31,20 @@ jobs:
     - name: 로또 정보 긁어오기 (실행)
       run: python update.py
 
+    - name: 파일 목록 확인 (디버깅용)
+      run: ls -R results/
+      # 이 단계가 로그에 찍히면 파일이 진짜 생겼는지 눈으로 확인 가능합니다.
+
     - name: 결과 깃허브에 올리기 (Commit & Push)
       run: |
         git config --global user.name "GitHub Action"
         git config --global user.email "action@github.com"
         
-        # results 폴더의 변경사항을 강제로 다 담습니다
+        # 1. results 폴더의 모든 파일(새로 생긴 1206.json 포함)을 장바구니에 담기
         git add results/
         
-        # 변경사항이 있을 때만 커밋하고 푸시합니다 (에러 방지)
+        # 2. 변경사항이 있는지 확인하고 커밋
         git commit -m "Add new lotto data (Auto)" || echo "변경사항이 없어 커밋하지 않습니다."
+        
+        # 3. 깃허브 저장소로 밀어넣기
         git push
