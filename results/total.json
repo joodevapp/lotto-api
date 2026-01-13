@@ -1,9 +1,14 @@
 [
   {
-    "draw_no": 1205,
-    "numbers": [ 1, 4, 16, 23, 31, 41 ],
-    "bonus_no": 2,
-    "date": "2026-01-03T00:00:00Z",
+    "drwNo": 1205,
+    "drwNoDate": "2026-01-03",
+    "drwtNo1": 1,
+    "drwtNo2": 4,
+    "drwtNo3": 16,
+    "drwtNo4": 23,
+    "drwtNo5": 31,
+    "drwtNo6": 41,
+    "bnusNo": 2,
     "divisions": [
       {
         "prize": 3226386263,
@@ -26,11 +31,9 @@
         "winners": 2915978
       }
     ],
-    "total_sales_amount": 132670747000,
     "winners_combination": {
       "auto": 9,
       "manual": 1
     }
   }
- 
 ]
