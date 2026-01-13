@@ -3,126 +3,139 @@ from bs4 import BeautifulSoup
 import json
 import re
 import os
-import sys
+import time
 
-def create_lotto_json():
-    # ==========================================
-    # 1. 최신 회차 크롤링 (동행복권 -> 개별 파일)
-    # ==========================================
-    # 봇 차단 방지를 위한 헤더 추가 (마치 크롬 브라우저인 척 하기)
+def fetch_lotto_data(round_no):
+    """특정 회차(round_no) 데이터를 가져옵니다."""
+    url = f"https://dhlottery.co.kr/gameResult.do?method=byWin&drwNo={round_no}"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
     }
 
-    url = "https://dhlottery.co.kr/gameResult.do?method=byWin"
-    
-    print("🚀 동행복권 사이트에 접속을 시도합니다...", flush=True)
+    print(f"🔎 {round_no}회차 데이터 확인 중...", end=" ", flush=True)
     
     try:
-        # headers와 timeout(10초)을 추가해서 접속 요청
         response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status() # 404나 500 에러면 즉시 중단
-        response.encoding = 'euc-kr'
         
+        # [수정된 부분] 인코딩 설정을 가장 먼저 해야 한글을 인식합니다!
+        response.encoding = 'euc-kr' 
+
+        # 이제 한글이 정상적으로 보이므로 검사 가능
+        if "당첨결과" not in response.text:
+            print("❌ 데이터 없음 (페이지 로딩 실패 또는 없는 회차)")
+            return False
+
         soup = BeautifulSoup(response.text, 'html.parser')
 
-        # 최신 회차 번호 찾기 (안전하게 가져오기)
-        title_tag = soup.select_one('.win_result h4 strong')
-        if not title_tag:
-            print("❌ 에러: 로또 회차 정보를 찾을 수 없습니다. (사이트 구조 변경 또는 차단 의심)", flush=True)
-            print(f"응답 내용 일부: {response.text[:200]}", flush=True) # 디버깅용
-            return # 여기서 종료
-
-        title_text = title_tag.text
-        current_round = int(re.sub(r'[^0-9]', '', title_text))
-        
-        # 날짜 찾기
-        date_text = soup.select_one('.win_result .desc').text
-        date_obj = re.search(r'(\d{4})년 (\d{2})월 (\d{2})일', date_text)
+        # 날짜 추출
+        date_text = soup.select_one('.win_result .desc')
+        if not date_text:
+            print("❌ 날짜 파싱 실패")
+            return False
+            
+        date_obj = re.search(r'(\d{4})년 (\d{2})월 (\d{2})일', date_text.text)
         formatted_date = f"{date_obj.group(1)}-{date_obj.group(2)}-{date_obj.group(3)}"
 
-        # 번호 찾기
+        # 번호 추출
         balls = soup.select('.num.win .ball_645')
+        if not balls:
+            print("❌ 번호 파싱 실패")
+            return False
+            
         numbers = [int(ball.text) for ball in balls]
         bonus = int(soup.select_one('.num.bonus .ball_645').text)
 
-        # 등수별 정보
+        # 등수 정보
         divisions = []
         table_rows = soup.select('.tbl_data.tbl_data_col tbody tr')
         for row in table_rows:
             cols = row.select('td')
-            if not cols: continue
-            # 데이터가 '원' '명' 같은 글자가 섞여있으므로 숫자만 추출
+            # '데이터가 없습니다' 체크
+            if not cols or len(cols) < 4: continue
+            
             try:
-                prize = int(re.sub(r'[^0-9]', '', cols[3].text.strip()))
-                winners = int(re.sub(r'[^0-9]', '', cols[2].text.strip()))
+                prize_text = cols[3].text.strip()
+                winners_text = cols[2].text.strip()
+                
+                # 숫자가 아닌 경우(ex: '0원') 처리
+                if '원' not in prize_text and '명' not in winners_text:
+                    continue
+
+                prize = int(re.sub(r'[^0-9]', '', prize_text))
+                winners = int(re.sub(r'[^0-9]', '', winners_text))
                 divisions.append({"prize": prize, "winners": winners})
-            except (ValueError, IndexError):
+            except:
                 continue
 
-        # 데이터 조립
-        winners_combination = {"auto": 0, "manual": 0} 
-
         result_data = {
-            "drwNo": current_round,
+            "drwNo": round_no,
             "drwNoDate": formatted_date,
-            "drwtNo1": numbers[0],
-            "drwtNo2": numbers[1],
-            "drwtNo3": numbers[2],
-            "drwtNo4": numbers[3],
-            "drwtNo5": numbers[4],
-            "drwtNo6": numbers[5],
+            "drwtNo1": numbers[0], "drwtNo2": numbers[1], "drwtNo3": numbers[2],
+            "drwtNo4": numbers[3], "drwtNo5": numbers[4], "drwtNo6": numbers[5],
             "bnusNo": bonus,
             "divisions": divisions,
-            "winners_combination": winners_combination
+            "winners_combination": {"auto": 0, "manual": 0}
         }
 
-        # results 폴더가 없으면 생성
+        # 파일 저장
         if not os.path.exists('results'):
             os.makedirs('results')
-            
-        # 개별 파일 저장 (예: results/1206.json)
-        filename = f"results/{current_round}.json"
-        with open(filename, 'w', encoding='utf-8') as f:
+        
+        with open(f"results/{round_no}.json", 'w', encoding='utf-8') as f:
             json.dump(result_data, f, indent=2, ensure_ascii=False)
             
-        print(f"✅ {current_round}회차 크롤링 및 저장 성공!", flush=True)
+        print("✅ 다운로드 성공!")
+        return True
 
     except Exception as e:
-        print(f"❌ 크롤링 중 치명적인 에러 발생: {e}", flush=True)
-        # 깃허브 액션이 실패로 인식하게 하려면 아래 주석을 푸세요
-        # sys.exit(1)
-        return
+        print(f"❌ 에러 발생: {e}")
+        return False
 
+def update_force():
+    # 1. 내 폴더 확인
+    if not os.path.exists('results'):
+        os.makedirs('results')
+    
+    files = [f for f in os.listdir('results') if f.endswith('.json') and f != 'total.json']
+    
+    if not files:
+        # 파일이 없으면 테스트로 1200회부터
+        start_round = 1200 
+    else:
+        # 마지막 저장된 회차 + 1 부터 시작
+        saved_rounds = [int(f.replace('.json', '')) for f in files]
+        start_round = max(saved_rounds) + 1
+    
+    print(f"🚀 {start_round}회차부터 업데이트를 시작합니다.")
 
-    # ==========================================
-    # 2. total.json 만들기 (파일 합치기)
-    # ==========================================
-    print("🔄 total.json 갱신 중...", flush=True)
-    
-    all_rounds = []
-    
-    if os.path.exists('results'):
-        file_list = os.listdir('results')
+    # 2. 무한 루프
+    current_try = start_round
+    while True:
+        success = fetch_lotto_data(current_try)
+        if not success:
+            # 1206회는 성공하고, 1207회에서 실패하며 멈출 것입니다.
+            print(f"✋ {current_try}회차는 아직 데이터가 없습니다. 종료합니다.")
+            break
         
-        for fname in file_list:
-            # 숫자.json 파일만 골라냅니다 (total.json은 제외)
-            if fname.endswith('.json') and fname != 'total.json':
-                try:
-                    with open(os.path.join('results', fname), 'r', encoding='utf-8') as f:
-                        data = json.load(f)
-                        all_rounds.append(data)
-                except:
-                    continue
-    
-    # 회차순으로 정렬 (최신 회차가 위로 오게 reverse=True)
-    all_rounds.sort(key=lambda x: x['drwNo'], reverse=True) 
-    
-    # total.json 저장
-    with open('results/total.json', 'w', encoding='utf-8') as f:
-        json.dump(all_rounds, f, indent=2, ensure_ascii=False)
+        current_try += 1
+        time.sleep(1) 
 
-    print(f"🎉 total.json 저장 완료! (현재 총 {len(all_rounds)}개 회차 포함됨)", flush=True)
+    # 3. 합치기
+    print("🔄 total.json 갱신 중...", flush=True)
+    all_data = []
+    files = os.listdir('results')
+    for fname in files:
+        if fname.endswith('.json') and fname != 'total.json':
+            try:
+                with open(os.path.join('results', fname), 'r', encoding='utf-8') as f:
+                    all_data.append(json.load(f))
+            except: pass
+    
+    all_data.sort(key=lambda x: x['drwNo'], reverse=True)
+    with open('results/total.json', 'w', encoding='utf-8') as f:
+        json.dump(all_data, f, indent=2, ensure_ascii=False)
+    
+    print(f"🎉 업데이트 완료! (총 {len(all_data)}개)")
 
 if __name__ == "__main__":
-    create_lotto_json()
+    update_force()
