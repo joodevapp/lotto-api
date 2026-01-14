@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 
 # 설정
 SOURCE_BASE_URL = "https://raw.githubusercontent.com/smok95/lotto/main/winning-stores/"
-TARGET_FILE = "result/all_winning_stores.json"
+TARGET_FILE = "results/all_winning_stores.json"
 
 def get_draw_date(drw_no):
     first_draw_date = datetime(2002, 12, 7)
