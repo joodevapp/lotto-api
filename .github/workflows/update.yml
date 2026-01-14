@@ -1,0 +1,36 @@
+name: Weekly Lotto Update
+
+on:
+  schedule:
+    # 한국 시간(KST) 기준 토요일 20:45 ~ 21:55까지 5분 간격 실행
+    # UTC 기준: 11:45 ~ 12:55
+    - cron: '45,50,55 11 * * 6'
+    - cron: '*/5 12 * * 6'
+    - cron: '0 13 * * 6' # 22:00 정각 마지막 확인
+  workflow_dispatch: # 수동으로 "Run workflow" 버튼 눌러서 실행 가능하게 함
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run update script
+        run: python update_lotto.py
+
+      - name: Commit and Push
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add result/all_winning_stores.json
+          git commit -m "Update: 이번 주 당첨점 추가" || exit 0
+          git push
