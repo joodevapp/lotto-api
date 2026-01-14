@@ -27,10 +27,10 @@ jobs:
       - name: Run update script
         run: python update_lotto.py
 
-- name: Commit and Push
+      - name: Commit and Push
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add results/all_winning_stores.json
+          git add result/all_winning_stores.json
           git commit -m "Update: 이번 주 당첨점 추가" || exit 0
-          git push origin main
+          git push
